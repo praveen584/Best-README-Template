@@ -1,0 +1,61 @@
+from flask import Flask, request, jsonify
+from queue import Queue
+from threading import Thread
+
+app = Flask(__name__)
+logs_queue = Queue()
+
+def log_ingestor():
+    while True:
+        log_data = logs_queue.get()
+        # In a real system, you would store the log_data in a database or another storage solution
+        print(f"Ingested log: {log_data}")
+
+@app.route('/ingest', methods=['POST'])
+def ingest_log():
+    log_data = request.json
+    logs_queue.put(log_data)
+    return jsonify({'message': 'Log ingested successfully'})
+
+if __name__ == '__main__':
+    # Start log ingestor thread
+    log_ingestor_thread = Thread(target=log_ingestor)
+    log_ingestor_thread.start()
+
+    # Start Flask app
+    app.run(port=3000)
+from flask import Flask, request, jsonify
+from datetime import datetime
+
+app = Flask(__name__)
+logs = []  # In-memory storage for simplicity, consider using a database in a real-world scenario
+
+@app.route('/search', methods=['GET'])
+def search_logs():
+    filters = request.args.to_dict()
+    results = filter_logs(filters)
+    return jsonify(results)
+
+def filter_logs(filters):
+    filtered_logs = logs.copy()
+    for key, value in filters.items():
+        if key == 'timestamp':
+            filtered_logs = [log for log in filtered_logs if check_timestamp(log[key], value)]
+        else:
+            filtered_logs = [log for log in filtered_logs if log.get(key) == value]
+    return filtered_logs
+
+def check_timestamp(log_timestamp, filter_timestamp):
+    log_time = datetime.strptime(log_timestamp, '%Y-%m-%dT%H:%M:%SZ')
+    filter_time = datetime.strptime(filter_timestamp, '%Y-%m-%dT%H:%M:%SZ')
+    return log_time >= filter_time
+
+if __name__ == '__main__':
+    # Example logs data
+    logs_data = [
+        {"level": "error", "message": "Failed to connect to DB", "resourceId": "server-1234", "timestamp": "2023-09-15T08:00:00Z", "traceId": "abc-xyz-123", "spanId": "span-456", "commit": "5e5342f", "metadata": {"parentResourceId": "server-0987"}},
+        # ... add more logs as needed
+    ]
+
+    logs.extend(logs_data)
+    app.run(port=3000)  # Run on a different port than the log ingestor
